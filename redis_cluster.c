@@ -74,6 +74,10 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_cluster, 0, 0, 1)
 #endif
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_close, 0, 0, 1)
+    ZEND_ARG_INFO(0, completely)
+ZEND_END_ARG_INFO()
+
 /* Argument info for HSCAN, SSCAN, HSCAN */
 ZEND_BEGIN_ARG_INFO_EX(arginfo_kscan_cl, 0, 0, 2)
     ZEND_ARG_INFO(0, str_key)
@@ -109,7 +113,7 @@ zend_function_entry redis_cluster_functions[] = {
     PHP_ME(RedisCluster, brpoplpush, arginfo_brpoplpush, ZEND_ACC_PUBLIC)
     PHP_ME(RedisCluster, clearlasterror, arginfo_void, ZEND_ACC_PUBLIC)
     PHP_ME(RedisCluster, client, arginfo_client, ZEND_ACC_PUBLIC)
-    PHP_ME(RedisCluster, close, arginfo_void, ZEND_ACC_PUBLIC)
+    PHP_ME(RedisCluster, close, arginfo_close, ZEND_ACC_PUBLIC)
     PHP_ME(RedisCluster, cluster, arginfo_cluster, ZEND_ACC_PUBLIC)
     PHP_ME(RedisCluster, command, arginfo_command, ZEND_ACC_PUBLIC)
     PHP_ME(RedisCluster, config, arginfo_config, ZEND_ACC_PUBLIC)
@@ -478,7 +482,7 @@ void redis_cluster_load(redisCluster *c, char *name, int name_len TSRMLS_DC) {
     }
 
     /* Attempt to create/connect to the cluster */
-    redis_cluster_init(c, ht_seeds, timeout, read_timeout, persistent TSRMLS_CC);    
+    redis_cluster_init(c, ht_seeds, timeout, read_timeout, persistent TSRMLS_CC);
 
     /* Clean up our arrays */
     zval_dtor(&z_seeds);
@@ -530,9 +534,20 @@ PHP_METHOD(RedisCluster, __construct) {
  * RedisCluster method implementation
  */
 
-/* {{{ proto bool RedisCluster::close() */
+/* {{{ proto bool RedisCluster::close([bool completely]) */
 PHP_METHOD(RedisCluster, close) {
-    cluster_disconnect(GET_CONTEXT() TSRMLS_CC);
+    redisCluster *c = GET_CONTEXT();
+    redisClusterNode *node;
+    zval *object;
+    zend_bool completely = 0;
+
+    // Parse arguments
+    if(zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O|b",
+                                    &object, redis_cluster_ce, &completely)==FAILURE) {
+        RETURN_FALSE;
+    }
+
+    cluster_disconnect(GET_CONTEXT(), completely TSRMLS_CC);
     RETURN_TRUE;
 }
 

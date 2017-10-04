@@ -1065,13 +1065,18 @@ static int cluster_check_response(redisCluster *c, REDIS_REPLY_TYPE *reply_type
 }
 
 /* Disconnect from each node we're connected to */
-PHP_REDIS_API void cluster_disconnect(redisCluster *c TSRMLS_DC) {
+PHP_REDIS_API void cluster_disconnect(redisCluster *c, zend_bool completely TSRMLS_DC) {
     redisClusterNode *node;
 
     ZEND_HASH_FOREACH_PTR(c->nodes, node) {
         if (node == NULL) break;
         redis_sock_disconnect(node->sock TSRMLS_CC);
         node->sock->lazy_connect = 1;
+        if (completely) {
+            node->sock->persistent_id = NULL;
+            php_stream_close(node->sock->stream);
+            node->sock->stream = NULL;
+        }
     } ZEND_HASH_FOREACH_END();
 }
 
@@ -1297,7 +1302,7 @@ PHP_REDIS_API int cluster_abort_exec(redisCluster *c TSRMLS_DC) {
     while(fi) {
         if(SLOT_SOCK(c,fi->slot)->mode == MULTI) {
             if(cluster_send_discard(c, fi->slot TSRMLS_CC)<0) {
-                cluster_disconnect(c TSRMLS_CC);
+                cluster_disconnect(c, ((zend_bool)0) TSRMLS_CC);
                 return -1;
             }
             SLOT_SOCK(c,fi->slot)->mode = ATOMIC;
